@@ -1,0 +1,56 @@
+
+
+======================== working =========================
+
+#!/usr/bin/expect
+set timeout 5
+set username [lindex $argv 1]
+set password [lindex $argv 2]
+set hostname [lindex $argv 0]
+log_user 0
+
+spawn ssh -q  -o StrictHostKeyChecking=no -o CheckHostIP=no $username@$hostname
+
+expect "yes/no" {
+    send "yes\r"
+    }
+
+expect "*?assword:" {
+    send  "$password\r"
+    }
+
+expect -re "(#|>)" {
+ send  " lsnodecanister -delim :\nexit\r"
+}
+
+interact
+
+
+============================ READY ==============================
+
+#!/usr/bin/expect
+set timeout 5
+set username [lindex $argv 1]
+set password [lindex $argv 2]
+set hostname [lindex $argv 0]
+log_user 0
+
+spawn ssh -q  -o StrictHostKeyChecking=no -o CheckHostIP=no  -o NumberOfPasswordPrompts=1 $username@$hostname
+
+expect "yes/no" {
+    send "yes\r"
+    }
+
+expect "*?assword:" {
+    send  "$password\r"
+    }
+
+expect -re "(#|>)" {
+ send  " lsnodecanister -delim :\nexit\r"
+ interact
+ exit 0
+}
+
+send_user "EXIT CODE: Permission denied \n"
+exit 1
+

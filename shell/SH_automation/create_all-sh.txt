@@ -1,0 +1,90 @@
+#!/bin/bash
+
+#MS_LIST="account adjustment charge interaction invoice ordering payment shoppingcart ui usermgmt"
+MS_LIST="charge interaction"
+
+for MS in $MS_LIST
+do
+
+echo -e "START Working on [ $MS ]"
+
+# create directory
+echo -e " create directory [ bil_$MS ]"
+if [ -d bil_$MS ]
+then
+ rm -rf bil_$MS
+fi
+mkdir -p bil_$MS
+
+
+# extract content
+echo -e " start extracting"
+echo -e "   - extract 3P"
+unzip -q optima/bil_3P*         -d bil_$MS/
+
+
+echo -e "   - extract common"
+unzip -q optima/bil_common*     -d bil_$MS/
+
+echo -e "   - extract bil_${MS}_*"
+unzip -q optima/bil_${MS}_*     -d bil_$MS/
+echo -e " Done extraction"
+
+
+
+# set correct permissions
+echo -e " Change Permissions"
+chown -R 1000.100 bil_${MS}
+
+#create archive
+echo -e " Create Archive"
+tar -zcf bil_${MS}.tar.gz -C bil_${MS} .
+
+# create docker file
+echo -e "\n  Create a Docker file [ build_${MS}_dockerfile ]"
+echo "FROM fuse_esb
+
+ADD bil_$MS.tar.gz /data/fuse/jboss-fuse-6.2.1.redhat-084/system/
+
+EXPOSE 8181 8001 8081:8080
+
+USER 1000
+
+ENV JAVA_HOME=/opt/jdk1.8.0_74
+
+RUN /data/fuse/jboss/bin/start \
+ && sleep 30 \
+ && /data/fuse/jboss/bin/client features:addurl mvn:com.amdocs.bil.framework/bil-fwkfeature/1.0.0-SNAPSHOT/xml/features \
+ && /data/fuse/jboss/bin/client features:addurl mvn:com.amdocs.bil.functional/bil-common/1.0.0-SNAPSHOT/xml/features \
+ && /data/fuse/jboss/bin/client features:addurl mvn:com.amdocs.bil.functional/bil-$MS/1.0.0-SNAPSHOT/xml/features \
+ && /data/fuse/jboss/bin/client features:install bil-framework-3p \
+ && /data/fuse/jboss/bin/client features:install bil-config-datas \
+ && /data/fuse/jboss/bin/client features:install bil-framework-core \
+ && /data/fuse/jboss/bin/client features:install bil-framework-cache-ehcache \
+ && /data/fuse/jboss/bin/client features:install bil-framework-fxconnector \
+ && /data/fuse/jboss/bin/client features:install bil-framework-wpconnector \
+ && /data/fuse/jboss/bin/client features:install bil-common-config \
+ && /data/fuse/jboss/bin/client features:install bil-common \
+ && /data/fuse/jboss/bin/client features:install bil-$MS-config \
+ && /data/fuse/jboss/bin/client features:install bil-$MS" > build_${MS}_dockerfile
+
+# Build Image
+echo -e "\n  Run the Build"
+docker build -f build_${MS}_dockerfile -t ${MS}_ms .
+
+# check exit status
+exit_status=$?
+if [ ! $exit_status -eq 0 ]; then
+    echo -e "\n ERROR Building [ ${MS} ]\n\n"
+    # Clear unbended dockers and containers.
+    echo -e "clear left over images from the failed build...\n"
+    docker rm -f $(docker ps -a -q)
+    docker rmi $(docker images -f 'dangling=true' -q)
+else
+    echo -e "FINISH Working on [ ${MS} ]\n\n"
+    # If you want to check the service is up, wait 2 min and execute the following
+    # curl -X GET -H "TenantId:2" http://localhost:8010/rest/v1/customeraccounts
+fi
+
+
+done

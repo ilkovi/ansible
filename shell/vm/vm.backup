@@ -1,0 +1,94 @@
+#!/bin/bash
+#
+###############################################
+#
+# Developed by Ivan
+#
+###############################################################################
+
+# Version 1.0(Mart/27/2015) Initial
+
+###############################################################################
+
+### GLOBAL VARIABLES  ###
+
+GREP="/bin/grep"
+EGREP="/bin/egrep"
+SED="/bin/sed"
+AWK="/usr/bin/awk"
+TAIL="/usr/bin/tail"
+SSH="/usr/bin/ssh"
+
+VM_CLI_VCMD="/bin/vim-cmd"
+VM_CLI_GETALLVMS="$VM_CLI_VCMD vmsvc/getallvms"
+VM_CLI_REGISTERVM="$VM_CLI_VCMD solo/registervm"
+VM_CLI_VM_POWER_ON="$VM_CLI_VCMD vmsvc/power.on"
+VM_CLI_VM_POWER_OFF="$VM_CLI_VCMD vmsvc/power.off"
+VM_CLI_VM_SHUTDOWN="$VM_CLI_VCMD vmsvc/power.shutdown"
+VM_CLI_VM_GET_STATE="$VM_CLI_VCMD vmsvc/power.getstate"
+VM_CLI_GET_SUMMARY="$VM_CLI_VCMD vmsvc/get.summary"
+ESXI_CLI_SUMMARY="$VM_CLI_VCMD hostsvc/hostsummary"
+
+ESXI_SERV="root@192.168.0.152"
+
+# Usage
+usage (){
+        echo -e "\nUsage: $0 {list|on|off}"
+        echo -e "\tlist \t-\tlist all VMs"
+        echo -e "\toff \t-\tVM Shut Down"
+        echo -e "\ton \t-\tVM Power On"
+	echo -e "\thost \t-\tPower OFF HOST\n"
+        exit 1
+}
+
+# List all virtual machines
+List () {
+LIST=`${SSH} ${ESXI_SERV} "${VM_CLI_GETALLVMS}"|${AWK} '{print $1}' | ${GREP} -v id`
+
+for vmid in ${LIST}; do
+	echo ${vmid}| tr -d '\n'
+	${SSH} ${ESXI_SERV} "${VM_CLI_GET_SUMMARY} ${vmid}" | ${EGREP} "name|ipAddress|powerState" | tr -d '\n'
+	echo -e
+done
+}
+
+# Power-on of the Virtual machine
+PowerOn () {
+	echo -n "Enter VM to power ON > "
+	read VM
+        ${SSH} ${ESXI_SERV} "${VM_CLI_VM_POWER_ON} ${VM}" 
+}
+
+# Power off /  Shutdown of the Virtual machine
+PowerOff () {
+	echo -n "Enter VM > "
+	read VM
+	${SSH} ${ESXI_SERV} "${VM_CLI_VM_SHUTDOWN} ${VM}"
+}
+
+# Power Off the ESXi host 
+hostShutdown () {
+	${SSH} ${ESXI_SERV} "poweroff"
+}
+
+# Reading the script parameters
+case "$1" in
+  on|On|ON)
+       PowerOn
+       ;;
+  off|Off|OFF)
+       PowerOff
+       ;;
+  list|List)
+       List
+       ;;
+  host)
+       hostShutdown
+       ;;
+  *)
+   usage
+   ;;
+esac
+
+## END ##################
+

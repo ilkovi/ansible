@@ -1,0 +1,248 @@
+#!/bin/bash
+###############################################
+#
+# Developed by Ivan.Ilkov@amdocs.com
+#
+###############################################
+#
+# Version 1.0(Aug/09/2016)
+#
+###############################################
+# Description:
+# intended for ssh keys exchange
+# 
+###############################################
+# Check super user attributes
+if [ `id -u` -ne 0 ]; then
+        echo -e "\n\tERROR: Sorry, but you are not root...\n"
+        $ec_exception
+fi
+
+# Check availability of expect utility ###
+if [ ! -f  /usr/bin/expect ]; then
+        echo "Error: expect utility not exist!!!"
+        exit 1
+fi
+
+usage () {
+	echo -e ""
+        echo -e "Usage:\n\t $0 HOSTS_LIST_FILE HOSTS_PASSWORD \n"
+	echo -e ""
+        sleep 2
+}
+
+if [ $# -lt 2 ]|| [ $# -gt 2 ]; then
+        usage
+	exit 0
+fi
+
+[ ! -f $1 ] && echo "ERROR: There is no such file [ $1 ] Exiting..." && exit 1
+
+SERVERS="$(< $1)"
+password=$2
+
+
+################################################################################
+
+PWD=`pwd`
+cur_date=`date +"%F_%H_%M_%S"`
+
+if [[ ! -d ${PWD}/log ]]; then
+        mkdir -p ${PWD}/log
+fi
+
+LOGFILE="${PWD}/log/log.transPublicKeys.${cur_date}"
+[ ! -f ${LOGFILE} ] && /bin/touch ${LOGFILE}
+
+################################################################################
+
+SUCCESS_COLOR="/bin/echo -en [ \\033[1;32m"
+export  SUCCESS_COLOR
+
+FAILURE_COLOR="/bin/echo -en [ \\033[1;31m"
+export FAILURE_COLOR
+
+NORMAL_COLOR="/bin/echo -en \\033[0;39m ]"
+export  NORMAL_COLOR
+
+################################################################################
+
+PRINT_LOG()
+#
+# Print to the log file only
+#
+{
+
+ [ ! -f $LOGFILE ] && /bin/touch $LOGFILE
+ /bin/echo -en "[$(date +%d"/"%b"/"%G"-"%T)] $1" >> $LOGFILE
+
+}
+
+
+################################################################################
+
+PRINT_LOG_SCREEN()
+#
+# Print to tty and logfile
+#
+{
+
+ ## Message to print
+ local message=$1
+
+ [[ ! -f $LOGFILE ]] && /bin/touch $LOGFILE
+ case "$2" in
+      "nopoints") /bin/echo -en "[$(date +%d"/"%b"/"%G"-"%T)] ${message}"
+                  ;;
+
+               *) /bin/echo -en "[$(date +%d"/"%b"/"%G"-"%T)] ${message}..."
+                  ;;
+ esac
+
+ /bin/echo -en "[$(date +%d"/"%b"/"%G"-"%T)] ${message}" >> $LOGFILE
+
+}
+
+
+################################################################################
+
+SUCCESS()
+#
+# Success message
+#
+{
+
+ [[ ! -f $LOGFILE ]] && /bin/touch $LOGFILE
+ $SUCCESS_COLOR;/bin/echo -n "OK" ;$NORMAL_COLOR;/bin/echo
+ /bin/echo -en " => [Ok]\n" >> $LOGFILE
+
+}
+
+
+################################################################################
+
+FAILURE()
+#
+# Failure message
+#
+{
+
+ [[ ! -f $LOGFILE ]] && /bin/touch $LOGFILE
+ $FAILURE_COLOR; /bin/echo -n "Failed" ;$NORMAL_COLOR; /bin/echo
+ /bin/echo -en " => [Failed]\n" >> $LOGFILE
+
+}
+
+
+################################################################################
+
+
+PRINT_LOG "INFO : $0 script initiated.\n"
+
+
+## MAIN
+
+# Check / Add keys
+
+PRINT_LOG "INFO : Checking for localhost ssh key files. \n"
+
+if [[ -f /root/.ssh/id_rsa && -f /root/.ssh/id_rsa.pub ]]; then
+	PRINT_LOG "INFO : FOUND keys. \n"
+else
+
+	PRINT_LOG "INFO : Not found \n"
+
+	if [[ -d /root/.ssh/ ]]; then
+		mkdir /root/.ssh
+		chmod 700 /root/.ssh
+	fi
+	/usr/bin/ssh-keygen -q -t rsa -N "" -f /root/.ssh/id_rsa
+	PRINT_LOG "INFO : New ssh key files generated (RSA protocol) \n"
+
+fi
+
+
+# Check / Add keys 
+for SERVER_IP in  $SERVERS; do
+  
+  PRINT_LOG_SCREEN "INFO : Exchange server [ ${SERVER_IP} ] "
+
+	## Pinging host
+	/bin/ping ${SERVER_IP} -w 2 -c 1  >/dev/null 2>&1
+	if (( $? == 0 )) ; then
+
+
+	   ## Check remote 22 port
+	   (echo >/dev/tcp/${SERVER_IP}/22) &>/dev/null
+	   if (( $? == 0 )) ; then
+
+		## Check if keys already exist
+		ssh -o BatchMode=yes -q "${SERVER_IP}" true
+		if (( $? != 0 )) ; then
+
+
+### Copy SSH kesy logic. Implemented with EXPECT below
+# ssh-copy-id -i ~/.ssh/id_rsa.pub root@${SERVER_IP}
+### 
+
+/usr/bin/expect <<EOD
+set timeout 1
+log_user 0
+
+spawn ssh-copy-id -i /root/.ssh/id_rsa.pub root@${SERVER_IP}
+
+expect {
+    "assword: " {
+        send "$password\n"
+        expect {
+	    "assword: "  { $ec_exception }
+            "again."     { $ec_exception }
+            "expecting." { }
+            timeout      { $ec_exception }
+        } 
+    }
+
+    "(yes/no)? " { 
+        send "yes\n" 
+        expect {
+            "assword: " {
+                send "$password\n"
+                expect { 
+		    "assword: "  { $ec_exception }
+                    "again."     { $ec_exception }
+                    "expecting." { }
+                    timeout      { $ec_exception }
+                } 
+            }
+        }
+    }
+
+}
+
+exit 0 
+
+EOD
+
+			ssh -o BatchMode=yes -q "${SERVER_IP}" true
+			if (( $? == 0 )) ; then
+				SUCCESS
+			else
+				FAILURE
+				PRINT_LOG_SCREEN "ERROR: Server ${SERVER_IP} fail to exchange keys. Wrong Password !\n\n" 'nopoints'
+			fi
+		else # There is working keys exchanged
+			SUCCESS
+		fi
+
+	   else # no SSH
+		FAILURE
+		PRINT_LOG_SCREEN "ERROR: Server ${SERVER_IP} SSH is STOPPED!\n\n" 'nopoints'
+	   fi
+
+	else # no ping
+		FAILURE
+		PRINT_LOG_SCREEN "ERROR: Server ${SERVER_IP} is unreachable.\n\n" 'nopoints'
+	fi
+done
+
+

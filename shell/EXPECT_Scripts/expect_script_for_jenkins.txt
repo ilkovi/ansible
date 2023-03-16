@@ -1,0 +1,72 @@
+
+
+
+
+
+############################################################## cat fabric.expect
+#!/usr/bin/expect -f
+set timeout 1
+log_user 1
+
+set PASSWORD [lindex $argv 0];
+
+spawn /usr/bin/ksh /data/cbsinstall/esb/createFabric.ksh -i ROOT
+
+expect {
+    "assword: " { send "$PASSWORD\n"
+        expect { "***"
+                { exit 1 }
+        }
+    }
+
+}
+
+interact
+
+exit 0
+
+
+############################################################## cat remote.expect
+#!/usr/bin/expect -f
+set timeout 1
+log_user 1
+
+set PASSWORD [lindex $argv 0];
+
+spawn /usr/bin/ksh /data/cbsinstall/esb/createRemoteContainers.ksh -i ALL
+
+expect {
+    "assword: " { send "$PASSWORD\n"
+        expect { "***"
+                { exit 1 }
+        }
+    }
+
+}
+
+interact
+
+exit 0
+
+############################################################## cat esb.expect
+#!/usr/bin/expect
+set timeout 1
+log_user 1
+
+set PASSWORD [lindex $argv 0];
+set VERSION [lindex $argv 1];
+
+spawn /usr/bin/ksh /data/cbsinstall/esb/installESBApp.ksh -i INSTALL
+
+expect {
+   "assword: " { send "$PASSWORD\n"
+    expect  "continue: "  {  send "$VERSION\n"; send "\n"
+        expect -re ": " { send "\n" }
+                          }
+               }
+}
+
+interact
+
+exit 0
+

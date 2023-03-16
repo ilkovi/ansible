@@ -1,0 +1,18 @@
+         my $check_connection = "/bin/ping $arrayIP -c 3 -i 0.1 | grep received";
+         my @check = BackTick(cmd => $check_connection, returnType => "a");
+         my $received = 0;
+
+                 foreach my $row (@check) {
+                         if ($row =~ /,\s+(\d+)\s+received/) {
+                         $received = $1;
+                         }
+                 }
+         if ( $received ) {
+                 my $naviseccli = "/opt/Navisphere/bin/naviseccli";
+                 my $Command="$naviseccli -User $username -Password $password -Scope 0 -h $arrayIP -AddUserSecurity";
+                 System("$Command") &&  Die("Error Registering Host to EMC VNX. Cache will not be set. Exiting");
+         } else {
+                 Die("There is no connection between host and EMC Array [ $arrayIP ]. Please check.");
+         }
+
+

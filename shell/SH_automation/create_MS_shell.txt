@@ -1,0 +1,91 @@
+#!/bin/bash
+
+PASSWORD=$1
+MICROS=accountmicroservice
+HOSTNAME=jboss01
+VESRION=\"1.0.0\"
+
+
+unzip /data/cbsinstall/esb/Optima-ESB-*
+unzip /data/cbsinstall/esb/optima_esb_installation*
+unzip /data/cbsinstall/esb/Optima-BIL*
+chmod 644 /data/cbsinstall/esb/cfgs/*
+
+
+echo 'FUSE_VERSION=jboss-fuse-6.2.1.redhat-084
+FUSE_PKG=jboss-fuse-full-6.2.1.redhat-084.zip
+STAGING_DIR=/data/cbsinstall/esb
+FUSE_SERVER_MOUNT=/data/fuse
+FUSE_ADMIN_USER=fabricroot
+FUSE_ADMIN_ROLES=\"admin, manager, viewer, Monitor, Operator, Maintainer, Deployer, Auditor, Administrator, SuperUser\"
+ENSEMBLE_ROOT_CONTAINER=esbroot
+FUSE_MAVEN_REPO=/data/optima_repo
+ENSEMBLE_CONTAINER_HOST=$HOSTNAME
+ENSEMBLE_CONTAINER_USER=fuseuser
+ENSEMBLE_CONTAINER_PASS=fusepass
+ENSEMBLE_CONTAINER_NAME=ensemble1
+ENSEMBLE_CONTAINER_PATH=/data/fuse' > /data/cbsinstall/esb/cfgs/fabricServer.cfg
+
+echo "REMOTE_CONTAINER_HOST=$HOSTNAME
+REMOTE_CONTAINER_USER=fuseuser
+REMOTE_CONTAINER_PASS=fuseuser
+REMOTE_CONTAINER_NAME=$MICROS
+REMOTE_CONTAINER_PATH=/data/$MICROS" > /data/cbsinstall/esb/cfgs/remoteContainers.cfg
+
+echo "APPLICATION_VERSION=1.0.0
+APPLICATION_ARTIFACTS=bil_3P,bil_framework,bil_common,bil_account,bil_adjustment,bil_charge,bil_interaction,bil_invoice,bil_payment,bil_productcatalog,bil_shoppingcart,bil_ordering,bil_usermgmt,bil_ui
+APPLICATION_PROFILES=framework,bil-common,bil-account,bil-adjustment,bil-charge,bil-interaction,bil-invoice,bil-payment,bil-productcatalog,bil-shoppingcart,bil-ordering,bil-usermgmt,bil-ui" > /data/cbsinstall/esb/cfgs/ESBApp.cfg
+
+sudo /usr/sbin/sshd
+
+
+/data/cbsinstall/esb/fabric.expect $PASSWORD
+/data/cbsinstall/esb/remote.expect $PASSWORD
+/data/cbsinstall/esb/esb.expect $PASSWORD $VESRION
+
+/data/fuse/jboss-fuse-6.2.1.redhat-084/bin/client fabric:container-add-profile $MICROS bil-framework -p $PASSWORD
+/data/fuse/jboss-fuse-6.2.1.redhat-084/bin/client fabric:container-add-profile $MICROS bil-common -p $PASSWORD
+
+case $MICROS in
+
+accountmicroservice)
+/data/fuse/jboss-fuse-6.2.1.redhat-084/bin/client fabric:container-add-profile $MICROS bil-account -p $PASSWORD
+;;
+paymentmicroservice)
+/data/fuse/jboss-fuse-6.2.1.redhat-084/bin/client fabric:container-add-profile $MICROS bil-payment -p $PASSWORD
+;;
+invoicemicroservice)
+/data/fuse/jboss-fuse-6.2.1.redhat-084/bin/client fabric:container-add-profile $MICROS bil-invoice -p $PASSWORD
+;;
+adjustmentmicroservice)
+/data/fuse/jboss-fuse-6.2.1.redhat-084/bin/client fabric:container-add-profile $MICROS bil-adjustment -p $PASSWORD
+;;
+shoppingcartmicroservice)
+/data/fuse/jboss-fuse-6.2.1.redhat-084/bin/client fabric:container-add-profile $MICROS bil-shoppingcart -p $PASSWORD
+;;
+orderingmicroservice)
+/data/fuse/jboss-fuse-6.2.1.redhat-084/bin/client fabric:container-add-profile $MICROS bil-ordering -p $PASSWORD
+;;
+chargemicroservice)
+/data/fuse/jboss-fuse-6.2.1.redhat-084/bin/client fabric:container-add-profile $MICROS bil-charge -p $PASSWORD
+;;
+interactionmicroservice)
+/data/fuse/jboss-fuse-6.2.1.redhat-084/bin/client fabric:container-add-profile $MICROS bil-interaction -p $PASSWORD
+;;
+productcatalogmicroservice)
+/data/fuse/jboss-fuse-6.2.1.redhat-084/bin/client fabric:container-add-profile $MICROS bil-productcatalog -p $PASSWORD
+;;
+usermgmtmicroservice)
+/data/fuse/jboss-fuse-6.2.1.redhat-084/bin/client fabric:container-add-profile $MICROS bil-usermgmt -p $PASSWORD
+;;
+uigmicroservice)
+/data/fuse/jboss-fuse-6.2.1.redhat-084/bin/client fabric:container-add-profile $MICROS bil-ui -p $PASSWORD
+;;
+esac
+
+echo "#!/bin/bash
+/data/fuse/jboss-fuse-6.2.1.redhat-084/bin/start
+sleep 60
+/usr/share/fuse6/bin/client fabric:container-start $MICROS
+exec \"\$@\" " > /home/fuseuser/start_fuse.sh
+

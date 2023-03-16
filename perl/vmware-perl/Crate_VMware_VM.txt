@@ -1,0 +1,454 @@
+
+
+VMware ESX Server supports additional scripting languages such as VmPerl.
+VmPerl is VMware's version of the Perl programming language.VMware has
+designed VmPerl to provide task automation and simple, single-purpose user
+interfaces.VmPerl's main purpose is to interact with the virtual machines on
+ESX Server.You can query status, start and stop virtual machines, as well as
+manage snapshots.With some creative scripting we can have VmPerl create
+our virtual machines for us as well. Scripting in VmPerl is not for beginners.
+If you've never scripted in Perl before then review the sample VmPerl Script
+and note the code comments in the script.VmPerl is a customized version of
+Perl, so research the Perl language in general for more information on how to
+program in Perl.The example script in Code Listing 4.7 was written so it
+could be easily modified to suit your particular needs. It is a basic VmPerl
+script with a menu-driven interface. Leveraging the knowledge you've gained
+in the previous sections will help you understand the script interactions.
+Novices in scripting should find the next script example very easy to understand
+and follow. Experienced scripters may find the script rudimentary and
+know of alternate ways to accomplish similar tasks. Whatever your scripting
+experience, I hope you find the example scripts in this chapter thought provoking
+and insightful.
+
+VmPerl allows for flexibility on how you go about creating your virtual
+machines. In our example script (see Code Listing 4.7), I used VmPerl's user
+input and file manipulation commands to accomplish the three primary tasks
+when creating virtual machines.
+
+    Creating the virtual machine configuration file (VMX)
+    Creating the virtual machine disk file (VMDK)
+    Registering the virtual machine with ESX Server
+
+Code Listing 4.7 Scripted VM Creation with Perl
+
+
+#!/usr/bin/perl -w
+use VMware::VmPerl;
+use VMware::VmPerl::Server;
+use VMware::VmPerl::ConnectParams;
+#use strict;
+##### VM Menu Driven Creation Script ############
+#Script Version 1.8
+#Author David E. Hart
+#Date 10-05-06
+#
+#----------+
+#Purpose |
+#-----------
+# This script presents a menu for automatically building
+# virtual machine config files (VMX) and Dis files (VMDK)
+# This script demonstrates how to automate the setup
+# of virtual environments
+#---------------------------+
+#Custom Variables Section |
+#---------------------------+
+#vmname = virtual machine name, will be used for disk as well
+#vmmem = amount of memory assigned to VM
+#vmos = OS that VM is configured for
+#vmdisk = size of VM disk
+###################################################
+main: # main menu
+system("clear");
+print " MAIN MENU n";
+print "------------------- Virtual Machine Creation --------- n";
+print "n";
+print "n";
+print "n";
+print " 1) Create a Custom VM n";
+print "n";
+print " 2) Create VM's from Defined Templates n";
+print "n";
+www.syngress.com
+Building a VM • Chapter 4 159
+370_VMware_Tools_04_dummy.qxd 10/12/06 7:28 PM Page 159
+print " 3) View ESX's registered VM's n";
+print "n";
+print " 4) Exit n";
+print "n";
+print " Your Selection - ";
+$menuopt = <>; chomp $menuopt; # Get user selection
+if ($menuopt == 1) { # Get input for custom VM
+system("clear");
+print "What do you want to name your VM? ";
+$vmname = <>; chomp $vmname; # use chomp to remove carriage return
+print "How much memory do you want to assign? ";
+$vmmem = <>;chomp $vmmem;
+print "Do you want to run Windows 2003STD as the OS? (y/n) ";
+$vmos = <>;chomp $vmos;
+if ($vmos eq "y") {
+$vmos = "winNetStandard";
+} # Only 2 options for this example
+else {
+print "Do you want to run Windows 2003Ent as the OS? (y/n) ";
+$vmos2 = <>;chomp $vmos2;
+if ($vmos2 eq "y") {
+$vmos = "winnetenterprise";
+}
+}
+print "What size hard disk do you want to set up (gb)? ";
+$vmdisk = <>;chomp $vmdisk;
+print "n";
+$x = writevmx(); # Subrouting for creating VMX file
+if ($x == 1) {
+print "VMX File written successfully n";
+}
+$w = setper(); # Subroutine to set permissions so anyone can
+use VM
+if ($w == 1) {
+www.syngress.com
+160 Chapter 4 • Building a VM
+370_VMware_Tools_04_dummy.qxd 10/12/06 7:28 PM Page 160
+print "Permissions set successfully n";
+}
+$y = createdisk(); # subrouting to create VMDK disk file
+if ($y == 1) {
+print "Virtual disk created successfully n";
+}
+$z = registervm(); # subroutine to register VM with ESX
+if ($z == 1) {
+print "VM registered successfully n";
+}
+print "Press the ENTER key to continue ...";
+$pause = 
+  
+   ;
+goto main
+}
+if ($menuopt == 2) { # option to displays the templates
+menu1:
+system("clear");
+print " Defined Templates n";
+print " ----------------- n";
+print "n";
+print "n";
+print " 1) Windows 2003std VM with 256m, 4gb drive n";
+print "n";
+print " 2) Windows 2003ent VM with 1gig, 8gb drive n";
+print "n";
+print "n";
+print "n";
+print "n";
+print " Your Selection - ";
+$menu1opt = <>; chomp $menu1opt;
+if ($menu1opt == 1) {
+$vmname = "2003std25m4gb";
+$vmmem = "256"; # change and add on similar sections
+www.syngress.com
+Building a VM • Chapter 4 161
+370_VMware_Tools_04_dummy.qxd 10/12/06 7:28 PM Page 161
+$vmdisk = "4"; # to create templates for your environment
+$vmos = "winnetstandard";
+$x = writevmx();
+if ($x == 1) {
+print "VMX File written successfully na";
+}
+$w = setper();
+if ($w == 1) {
+print "Permisions set successfully na";
+}
+$y = createdisk(); # Call subroutines to create VMs
+if ($y == 1) {
+print "Virtual disk created successfully na";
+}
+$z = registervm();
+if ($z == 1) {
+print "VM registered successfully na";
+}
+print "Press the ENTER key to continue ...";
+$pause = 
+   
+    ;
+goto main
+}
+if ($menu1opt == 2) {
+$vmname = "2003Ent1gb8gb";
+$vmmem = "1024";
+$vmdisk = "8";
+$vmos = "winnetenterprise";
+$x = writevmx();
+if ($x == 1) {
+print "VMX file written successfully na";
+}
+$w = setper();
+if ($w == 1) {
+print "Permissions set successfully na";
+www.syngress.com
+162 Chapter 4 • Building a VM
+370_VMware_Tools_04_dummy.qxd 10/12/06 7:28 PM Page 162
+}
+$y = createdisk();
+if ($y == 1) {
+print "Virtual disk created successfully na";
+}
+$z = registervm();
+if ($z == 1) {
+print "VM registered successfully na";
+}
+print "Press the ENTER key to continue ...";
+$pause = 
+    
+     ;
+goto main
+}
+else {
+goto menu1;
+}
+}
+if ($menuopt == 3) { # Use a function of VmPerl to display registered VMs
+system("clear");
+my ($server_name, $user, $passwd) = @ARGV; # Assume running in ESX
+server
+my $port = 902; # with appropriate
+rights
+VMware::VmPerl::ConnectParams::new($server_name,$port,$user,$passwd);
+VMware::VmPerl::ConnectParams::new(undef,$port,$user,$passwd);
+my $connect_params = VMware::VmPerl::ConnectParams::new();
+# Establish a persistent connection with server
+my $server = VMware::VmPerl::Server::new();
+if (!$server->connect($connect_params)) {
+my ($error_number, $error_string) = $server->get_last_error();
+www.syngress.com
+Building a VM • Chapter 4 163
+370_VMware_Tools_04_dummy.qxd 10/12/06 7:28 PM Page 163
+die "Could not connect to server: Error $error_number:
+$error_stringn";
+}
+print "nThe following virtual machines are registered:n";
+# Obtain a list containing every config file path registered with the
+server.
+my @list = $server->registered_vm_names();
+if (!defined($list[0])) {
+my ($error_number, $error_string) = $server->get_last_error();
+die "Could not get list of VMs from server: Error $error_number:
+".
+"$error_stringn";
+}
+print "$_n" foreach (@list);
+# Destroys the server object, thus disconnecting from the server.
+undef $server;
+print "Press the ENTER key to continue ...";
+$pause = 
+     
+      ;
+goto main
+}
+if ($menuopt == 4) {
+goto end1
+}
+sub writevmx { # Subroutine to Create VM's VMX config file
+# $file = '/vmfs/volumes/storage1/perlvm/perlvm.vmx'; #
+Name the file
+$file = "/vmfs/volumes/storage1/perlvm/" . $vmname . ".vmx";
+open(INFO, ">$file"); # Open for output
+www.syngress.com
+164 Chapter 4 • Building a VM
+370_VMware_Tools_04_dummy.qxd 10/12/06 7:28 PM Page 164
+print INFO 'config.version = "6" ' . "n";
+print INFO 'virtualHW.version = "3" ' . "n";
+print INFO 'memsize = "' . $vmmem . '" ' . "n";
+print INFO 'floppy0.present = "TRUE" ' . "n";
+print INFO 'displayName = "' . $vmname . '" ' . "n";
+print INFO 'guestOS = "' . $vmos . '" ' . "n";
+print INFO 'ide0:0.present = "TRUE" ' . "n";
+print INFO 'ide0:0.deviceType = "cdrom-raw" ' . "n";
+print INFO 'ide:0.startConnected = "false" ' . "n";
+print INFO 'floppy0.startConnected = "FALSE" ' . "n";
+print INFO 'floppy0.fileName = "/dev/fd0" ' . "n";
+print INFO 'Ethernet0.present = "TRUE" ' . "n";
+print INFO 'Ethernet0.connectionType = "monitor_dev" ' . "n";
+print INFO 'Ethernet0.networkName = "VM Network" ' . "n";
+print INFO 'Ethernet0.addressType = "vpx" ' . "n";
+print INFO 'scsi0.present = "true" ' . "n";
+print INFO 'scsi0.sharedBus = "none" ' . "n";
+print INFO 'scsi0.virtualDev = "lsilogic" ' . "n";
+print INFO 'scsi0:0.present = "true" ' . "n";
+print INFO 'scsi0:0.fileName = "' . $vmname . '.vmdk" ' . "n";
+print INFO 'scsi0:0.deviceType = "scsi-hardDisk" ' . "n";
+close(INFO); # Close the file
+}
+sub createdisk { # Subroutine to create virtual disk
+$cr = "vmkfstools -c " . $vmdisk . "g " . "
+/vmfs/volumes/storage1/perlvm/". $vmname . ".vmdk -a lsilogic";
+system("$cr");
+};
+sub registervm { # Subroutine to register VM with ESX Server
+www.syngress.com
+Building a VM • Chapter 4 165
+370_VMware_Tools_04_dummy.qxd 10/12/06 7:28 PM Page 165
+$rg = "vmware-cmd -s register /vmfs/volumes/storage1/perlvm/" .
+$vmname . ".vmx";
+system("$rg");
+}
+sub setper{ # Subroutine to set permission on VMX file
+$pm = "chmod 755 /vmfs/volumes/storage1/perlvm/" . $vmname .
+".vmx";
+system("$pm");
+}
+end1:
+
+Modifying Scripted VM Creation with Perl
+
+The script shown in Code Listing 4.7, and later in Code Listing 4.11, provides
+static mapping for VM creation.This is sufficient for an example, but
+not very practical for real-world scenarios.We will modify the script to support
+end-user input of VM destination pathing.We will accomplish this by
+adding a new variable $vmpath to our script and adding the appropriate following
+sections. 
+
+    Add new variable vmpath to scripts variable notes section
+
+#---------------------------+
+
+#Custom Variables Section |
+#---------------------------+
+#vmname = virtual machine name, used for disk as well
+#vmmem = amount of memory assigned to VM
+#vmos = OS that VM is configured for
+#vmdisk = size of VM disk
+#vmpath = path to VM directory, (must already exist)
+###################################################
+
+
+    Add new prompt in Custom VM Creation section, "option 1."
+
+
+print "What size hard disk do you want to set up (gb)? ";
+$vmdisk = <>;chomp $vmdisk;
+print "n";
+print "Path to Save VM (ie. /vmfs/volumes/storage1/vm/";
+$vmpath = <>;chomp $vmpath;
+print "n";
+
+
+    Add new prompt in Defined Templates section, "option 2."
+
+
+$vmos = "winnetstandard";
+print "Path to Save VM (ie. /vmfs/volumes/storage1/vm/";
+$vmpath = <>;chomp $vmpath;
+print "n";
+
+      
+    Update subroutine "writevmx".
+
+$file = $vmpath . $vmname . ".vmx";
+
+    Update subroutine "createdisk".
+
+
+$cr = "vmkfstools -c " . $vmdisk . "g " . $vmpath . $vmname . ".vmdk
+-a lsilogic";
+system("$cr");
+
+    Update subroutine "registerVM".
+
+$rg = "vmware-cmd -s register " .$vmpath . $vmname . ".vmx";
+
+system("$rg");
+
+    Update subroutine "setper".
+
+$pm = "chmod 755 " . $vmpath . $vmname . ".vmx";
+
+system("$pm");
+
+The script will now prompt you for VM destination when creating new
+VMs. Please note that when entering the destination file path, you should
+include the leading and trailing "/".
+
+When the script in Code Listing 4.7 is executed on the ESX server, a
+menu will be displayed (see Figure 4.14).
+
+Figure 4.14 The Perl Script VM Creation Menu
+
+
+Perl Script Components
+
+Utilizing the script in Code Listing 4.7, you can do the following tasks:
+
+    Create a custom VM with parameters that you supply.  
+    Create VMs from predefined templates. 
+    View listing of VMs currently registered on the ESX server.
+    Exit the script.
+
+This script was written to be easily customized by you, the reader.
+Variables have been set up for key VM-related options enabling simple modifications.
+Let's dissect this script to get a better understanding of VmPerl.
+Code Listing 4.8 shows the key variables.
+
+Code Listing 4.8
+Scripted Creation of VM with Perl Key Variables
+
+$vmname = virtual machine name, will be used for disk as well
+$vmmem = amount of memory assigned to VM
+$vmos = OS that VM is configured for
+$vmdisk = size of VM disk
+
+These variables in the program are either dynamic or static depending
+upon which option in the script you choose.The first option presented on the
+menu shown in Figure 4.14 is Create A Custom VM.This option will prompt
+you for the variables listed in Code Listing 4.8, as shown in Figure 4.15.
+
+Figure 4.15Perl Script Custom Creation of VM
+
+
+
+If you select the second option, Create VM's from Defined Templates,
+the values are set statically in that section. Code Listing 4.9 shows an example
+where these values are set in the code.
+
+Code Listing 4.9
+ Perl Script Static Variables for Template VM Creation
+
+if ($menu1opt == 1) {
+$vmname = "2003std25m4gb";
+$vmmem = "256";
+$vmdisk = "4";
+$vmos = "winnetstandard";
+
+
+It's a simple task to add additional menu options for more templates.
+Adding sections like those in Code Listing 4.9 will enable to you to define a
+bigger selection of templates for your environment.
+
+The third menu choice option in the script is View ESX's Registered
+VM's.This section utilizes the VmPerl API to access the ESX server. For more
+information on the VmPerl API, download the ESX server SDK.This section
+of the code connects to the local ESX server with your current userid and
+password on port 902. It then queries ESX Server for a listing of registered
+VMs. Figure 4.16 shows the output generated by this option.
+
+Figure 4.16 Perl Script Query of ESX Server for Registered VMs
+
+
+
+VmPerl Commands
+
+VmPerl by itself cannot create virtual machine files or register virtual
+machines.To accomplish these tasks, we must use the tools available.The
+sample VmPerl script utilizes the command "system" to access the following
+VMware tools:
+
+    vmkfstools 
+    vmware-cmd
+
+
+Do those tools sound familiar? By now you've become quite adept at utilizing
+these tools for the creation of virtual machines.The latter sections of
+the code contain the subroutines that handle the virtual machine disk creation
+createdisk, and VM registration registervm. It is in these subroutines that
+we use the tools listed earlier.
+
+Utilizing the example script, and with your working knowledge of the
+VMware tools from previous sections, you should have a competent understanding
+of how to create virtual machines from a VmPerl script.

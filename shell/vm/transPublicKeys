@@ -1,0 +1,295 @@
+#!/usr/bin/env python
+#
+##################################################################
+#
+# 1) Generates keys on the local unit for the user root
+# 2) Generates keys on the local unit for another user 
+# 3) Transfers root public keys to the destination units
+# 4) Transfers required user keys to a destination unit
+# 5) Appends the keys to the authorized_keys files 
+# 6) Sends dummy string to add entry to the known_hosts file
+#
+##################################################################
+
+
+### Version ###
+__version__ = "1.1"
+
+
+### Imported modules
+import sys
+import pexpect
+import os
+import getpass
+import re
+import socket
+
+
+### Constants
+SCP = '/usr/bin/scp'
+SSH = '/usr/bin/ssh'
+SSH_DIR_ROOT = '/root/.ssh/'
+AUTH_KEYS_ROOT = '/root/.ssh/authorized_keys'
+AUTH_KEYS_ROOT_TEMP = '/root/authorized_keys_temp'
+PUB_KEYS_ROOT = '/root/.ssh/id_dsa.pub'
+ROOT_KNOWN = '/root/.ssh/known_hosts'
+
+
+### Answer string
+SSH_NEW_KEY='Are you sure you want to continue connecting'
+
+
+### Class difinition 
+class TransSshKeys:
+     """class TransSshKeys"""
+
+     def __init__(self, passwd):
+         """constructor"""
+         self.passwd = passwd
+
+
+     def transKeysRoot(self,host):
+         """transfer root public keys"""
+         cmd = '%s %s root@%s:%s' % (SCP,PUB_KEYS_ROOT,host,AUTH_KEYS_ROOT_TEMP)
+         print "=> transferring root public keys to the host %s..." % (host) 
+         self.obj = pexpect.spawn(cmd)
+         self.__check()
+
+
+     def addKeysRoot(self,host):
+         """append root public keys to the file"""
+         cmd = '%s root@%s  /bin/mkdir -p -m 700 %s;/bin/cat %s >> %s;/bin/rm -f %s' % (SSH,host,SSH_DIR_ROOT,AUTH_KEYS_ROOT_TEMP,AUTH_KEYS_ROOT,AUTH_KEYS_ROOT_TEMP)
+         print "=> appending the keys to the %s file on the host %s..." % (AUTH_KEYS_ROOT,host)
+         self.obj = pexpect.spawn(cmd)
+         self.__check()
+         cmd = '%s root@%s' % (SSH,host)
+         self.__check()
+
+
+
+     def createOtherLocalKeys(self,user):
+        """generates public/private keys for the user smsc on the local host"""
+
+        ## getting user's parameters
+        self.__getUserParams(user)
+        
+        ## setting environments for the user
+        self.sshDir = self.homeDir + '/.ssh'
+        privateKeys = self.sshDir + '/id_dsa'
+
+        if os.path.isfile(privateKeys):
+		print " => user %s keys exist, will not create new keys" (user)
+	else:
+		print "=> generating keys for the user %s on the local unit..." % (user)
+	        os.system("echo -e \"\n\"|/bin/su - %s -c '/usr/bin/ssh-keygen -t dsa -f %s -N \"\"' >/dev/null" % (user,privateKeys))
+
+
+     def transKeysOther(self,host,user):
+         """transfer public keys for another user"""
+          
+         ## setting environments for the user
+         self.pubKeys = self.sshDir + '/id_dsa.pub'
+         self.authKeys = self.sshDir + '/authorized_keys'
+         self.tempKeys = self.homeDir + '/authorized_keys_temp'
+
+         cmd = '%s %s root@%s:%s' % (SCP,self.pubKeys,host,self.tempKeys)
+         print "=> transferring %s public keys to the host %s..." % (user,host)
+         self.obj = pexpect.spawn(cmd)
+         self.__check()
+
+
+
+     def addKeysOther(self,host,user):
+         """append public keys for the user to the file"""
+
+         cmd = '%s root@%s  /bin/mkdir -p -m 700 %s;/bin/cat %s >> %s;/bin/rm -f %s' % (SSH,host,self.sshDir,self.tempKeys,self.authKeys,self.tempKeys)
+         print "=> appending the keys to the %s file on the host %s..." % (self.authKeys,host)
+         self.obj = pexpect.spawn(cmd)
+         self.__check()
+         cmd = '%s root@%s' % (SSH,host)
+         self.__check()
+
+
+     ## private stuff for the class
+     def __getUserParams(self,user):
+         """ """
+         import pwd
+         self.homeDir =  pwd.getpwnam(user)[-2]
+         del pwd
+
+
+
+     def __check(self):
+        """monitor the status"""
+        i=self.obj.expect([SSH_NEW_KEY,'.*ssword:',pexpect.EOF],timeout=20000)
+        if i==0:
+            self.obj.sendline('yes')
+            i=self.obj.expect([SSH_NEW_KEY,'.*ssword:',pexpect.EOF])
+
+        if i==1:
+            self.obj.sendline(self.passwd)
+            self.obj.expect(pexpect.EOF)
+        elif i==2:
+            pass
+        # printing the output
+        #print self.obj.before
+
+
+    
+
+### Private stuff
+
+def _isLocalHost(host):
+    """checking whether the destination host is the localhost or not"""
+
+    localHostName = socket.gethostname()
+    localHostIp = socket.gethostbyaddr(localHostName)[2][0]
+   
+    ## return true in case the unit is the local host 
+    if  socket.gethostbyaddr(host)[0] == localHostName or\
+        socket.gethostbyaddr(host)[2][0] == localHostIp:
+          return True
+    return False
+
+
+
+### Public stuff
+
+def createRootLocalKeys():
+    if os.path.isfile('/root/.ssh/id_dsa'):
+                print " => user root keys exist, will not create new keys" 
+    else:
+	"""generates public/private keys for the user root on the local host"""
+
+  	print "=> generating keys for the user root on the local unit..."
+    	os.system("/bin/echo -e \"\n\"|/usr/bin/ssh-keygen -t dsa -f /root/.ssh/id_dsa -N \"\" > /dev/null")
+
+
+
+def getListFile(file):
+   """appends the contents of the file to array"""
+
+   try:
+      fd = open(file,"r")
+   except IOError:
+      sys.exit("ERROR: cannot open the file %s" % (file))
+   hosts = []
+   for line in fd.readlines():
+       hosts.append(line.strip())
+   fd.close()
+   return hosts
+
+
+
+def checkHostsRecord(host):
+   """checks whether its possible to resolve
+      the name/IP of the unit"""
+
+   try:
+      socket.gethostbyaddr(host)
+   except socket.herror, socket.gaierror:
+      print sockError()
+
+
+
+def sockError():
+   """socket error message"""
+
+   print "ERROR: please append the record for the host %s to the /etc/hosts file" % (host)
+   print 
+#   sys.exit(1)
+   
+
+
+def usage():
+   """usage message"""
+
+   print """
+Usage:
+    ./transPublicKeys --units <unit1> <unit2> <unit3>
+    ./transPublicKeys --file <full_path_to_the_file>
+    ./transPublicKeys --user <user_name> --units <unit1> <unit2> <unit3>
+    ./transPublicKeys --user <user_name>  --file <full_path_to_the_file>
+
+Where:
+    <unit1> <unit2> <unitN> - the list of the destination units
+    <path_to_the_file>      - optional file created by the user
+                              and containing a list of the units
+    <user_name>             - create and transfer keys only for 
+                              the specified user
+   """
+   sys.exit(1)
+ 
+
+
+### Main 
+
+if __name__ == "__main__":
+  if len(sys.argv) < 3: usage()
+  user = "ALL"
+  list = []
+  if sys.argv[1] == "--user":
+      if len(sys.argv) < 5: usage()
+      user = sys.argv[2]
+      if sys.argv[3] == "--units":
+          try:
+              list = sys.argv[4:]
+          except IndexError:
+              usage()
+
+      elif sys.argv[3] == "--file":
+          try:
+             list = getListFile(sys.argv[4])
+          except IndexError:
+             usage()
+
+  elif sys.argv[1] == "--units":
+     try:
+        list = sys.argv[2:]
+     except IndexError:
+        usage()
+
+  elif sys.argv[1] == "--file":
+     try:
+         list = getListFile(sys.argv[2])
+     except IndexError:
+         usage()
+
+  else:
+      usage()
+  print 
+
+  ## checking whether the units have their records in the /etc/hosts file or DNS
+  [ checkHostsRecord(host) for host in list ]
+ 
+ ## getting root's password 
+  passwd = getpass.getpass("Enter root password: ")
+  print 
+  obj = TransSshKeys(passwd)
+
+  ## in case the keys should be created and transferred for smsc and root users
+  if user == "ALL":
+     createRootLocalKeys()
+     for host in list:
+          obj.transKeysRoot(host)
+          obj.addKeysRoot(host)
+          print
+ 
+  ## in case only for the user root
+  elif user == "root":
+     createRootLocalKeys()
+     for host in list:
+          obj.transKeysRoot(host)
+          obj.addKeysRoot(host)
+          print
+
+  else:
+     ## in other case  
+     obj.createOtherLocalKeys(user)
+     for host in list:
+          obj.transKeysOther(host,user)
+          obj.addKeysOther(host,user)
+          print
+
+###############     
+

@@ -1,0 +1,9 @@
+This is example text file.
+It contains some line with text.
+We will use it later for our examples.
+#  This is a comment.
+This is last line.
+
+No, this is last one.
+
+No, this is last one.

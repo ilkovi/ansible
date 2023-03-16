@@ -1,0 +1,34 @@
+##### Read from hash
+         foreach my $count ( keys ( (%$hash)  ) ){
+ print $count;
+                 foreach my $element (keys %{$hash->{$count}} ) {
+                         print "$element 111\n";
+                 }
+         }
+
+
+ STARTING FUNCTION: main::checkConfiguration
+ 1192.168.0.152 111
+ 2192.168.0.153 111
+
+ 
+ 
+### check hash for undefined value 
+  Code:
+             $phone = $result->getElementsByTagName('Phone')->item(0)->getFirstChild->getNodeValue;
+ Error:
+ Can't call method "getNodeValue" on an undefined value at XML.pl line 53.
+
+
+ eval{ $phone = $result->getElementsByTagName('Phone')->item(0)->getFirstChild->getNodeValue; }
+ or
+ if( my $child = $result->getElementsByTagName('Phone')->item(0)->getFirstChild ){  $phone = $child->getNodeValue; }
+
+
+install module via #cpan
+ http://www.livejournal.com/doc/server/lj.install.perl_setup.modules.html
+
+perl cgi
+ http://search.cpan.org/~lds/CGI.pm-3.20/CGI.pm
+
+ http://www.tutorialspoint.com/perl/perl_cgi.htm
